@@ -1,0 +1,201 @@
+name: Test Gemini PR Review (Direct)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gates_and_bundle:
+    if: github.event_name == 'pull_request' || (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          github.actor != 'github-actions[bot]' &&
+          contains(github.event.comment.body, '/gemini')
+        )
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout (for PR gates + bundle)
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ format('refs/pull/{0}/merge', github.event.pull_request.number) }}
+
+      - name: Checkout (for comment-triggered bundle)
+        if: github.event_name == 'issue_comment'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache npm
+        if: hashFiles('package-lock.json', '.github/package-lock.json') != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json', '.github/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        if: hashFiles('package.json') != ''
+        run: npm ci
+
+      - name: Install Gemini bot deps
+        if: hashFiles('.github/package.json') != ''
+        run: npm ci --prefix .github
+
+      - name: Run formatter / linter (Node example)
+        if: github.event_name == 'pull_request' && hashFiles('package.json') != ''
+        run: npm run lint --if-present
+
+      - name: Run tests (Node example)
+        if: github.event_name == 'pull_request' && hashFiles('package.json') != ''
+        run: npm test --if-present
+
+      - name: Build review bundle (diff + metadata + gate summary)
+        env:
+          REPO: ${{ github.repository }}
+        run: node .github/scripts/build_review_bundle.mjs
+
+      - name: PR size guardrail
+        run: node .github/scripts/size_guardrail.mjs
+
+      - name: Upload review inputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-review-inputs
+          path: |
+            review_bundle.json
+            STOP_REVIEW.txt
+          if-no-files-found: ignore
+
+  gemini_review:
+    needs: gates_and_bundle
+    if: github.event_name == 'pull_request' || (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          github.actor != 'github-actions[bot]' &&
+          contains(github.event.comment.body, '/gemini')
+        )
+    runs-on: ubuntu-latest
+    concurrency:
+      group: gemini-pr-review-v2-repo-wide
+      cancel-in-progress: false
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+      GEMINI_REVIEW_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
+      REPO: ${{ github.repository }}
+      GEMINI_PRIMARY_MODEL: ${{ vars.GEMINI_PRIMARY_MODEL || 'gemini-2.5-flash' }}
+      GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash' }}
+
+    steps:
+      - name: Checkout (for PR Gemini steps)
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ format('refs/pull/{0}/merge', github.event.pull_request.number) }}
+
+      - name: Checkout (for comment-triggered Gemini steps)
+        if: github.event_name == 'issue_comment'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache npm
+        if: hashFiles('package-lock.json', '.github/package-lock.json') != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json', '.github/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        if: hashFiles('package.json') != ''
+        run: npm ci
+
+      - name: Install Gemini bot deps
+        if: hashFiles('.github/package.json') != ''
+        run: npm ci --prefix .github
+
+      - name: Download review inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: gemini-review-inputs
+          path: .
+
+      - name: Normalize review inputs
+        run: |
+          if [ -d gemini-review-inputs ]; then
+            mv gemini-review-inputs/* .
+            rmdir gemini-review-inputs || true
+          fi
+
+      - name: Check Gemini API key
+        id: gemini_key
+        run: |
+          if [ -n "${GEMINI_REVIEW_API_KEY}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify missing Gemini API key
+        if: steps.gemini_key.outputs.has_key != 'true'
+        run: |
+          node -e "import { Octokit } from '@octokit/rest'; const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN }); const [owner, repo] = process.env.REPO.split('/'); const issue_number = Number(process.env.PR_NUMBER); await octokit.issues.createComment({ owner, repo, issue_number, body: 'Gemini review skipped: `GEMINI_REVIEW_API_KEY` is missing or empty. Set it in repo secrets to enable the bot.' });"
+
+      - name: Gemini analyze
+        continue-on-error: true
+        if: steps.gemini_key.outputs.has_key == 'true'
+        run: node .github/scripts/gemini_analyze.mjs
+
+      - name: Gemini format into final review
+        continue-on-error: true
+        if: steps.gemini_key.outputs.has_key == 'true'
+        run: node .github/scripts/gemini_format_review.mjs
+
+      - name: Post PR review
+        if: steps.gemini_key.outputs.has_key == 'true'
+        run: node .github/scripts/post_pr_review.mjs
+
+      - name: Post blocker inline comments (optional)
+        if: steps.gemini_key.outputs.has_key == 'true'
+        run: node .github/scripts/post_inline_blockers.mjs
+
+      - name: Upload review outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-review-outputs
+          path: |
+            review_bundle.json
+            gemini_findings.json
+            gemini_analyze_raw.txt
+            review_final.md
+            STOP_REVIEW.txt
+          if-no-files-found: ignore
