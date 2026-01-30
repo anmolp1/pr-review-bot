@@ -99,5 +99,33 @@ The bot scripts rely on `@google/genai` and `@octokit/rest` and are installed fr
 - [ ] Release tagged (`v1` / `v1.x.y`)
 - [ ] `v1` moved to the latest compatible release
 
+## Release notes example
+Include a short “Usage” section in each release with a copy-paste workflow example. For example:
+
+```yml
+name: Gemini PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gemini_pr_review:
+    uses: anmolp1/pr-review-bot/.github/workflows/gemini-pr-review-v2.yml@v1.0.0
+    with:
+      comment_trigger: "/gemini"
+      run_gates: true
+      node_version: "20"
+    secrets:
+      GEMINI_REVIEW_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
+```
+
 ## License
 MIT (see `LICENSE`).
