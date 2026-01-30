@@ -52,3 +52,6 @@ The bot scripts rely on `@google/genai` and `@octokit/rest` and are installed fr
 
 ## License
 MIT (see `LICENSE`).
+
+
+_Test change for Gemini review workflow._
