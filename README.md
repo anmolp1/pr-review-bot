@@ -6,6 +6,12 @@ This repo is designed to be copied into your own repository. It is not published
 
 ## How to use (copy into your repo)
 
+Option A (one command):
+```bash
+curl -fsSL https://raw.githubusercontent.com/anmolp1/pr-review-bot/v1/install.sh | bash
+```
+
+Option B (manual copy):
 1) In your repo, create this exact folder structure (if it doesn’t exist):
 - `.github/`
 - `.github/workflows/`

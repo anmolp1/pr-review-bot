@@ -4,6 +4,13 @@
 - 
 
 ## Usage
+Option A (one command):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anmolp1/pr-review-bot/vX/install.sh | bash
+```
+
+Option B (reusable workflow):
 Copy this workflow into your repo and pin to this release tag:
 
 ```yml
