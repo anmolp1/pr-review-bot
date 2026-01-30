@@ -3,27 +3,18 @@ name: PR Review (Gates + Gemini v2)
 on:
   workflow_call:
     inputs:
-      # How to trigger comment reruns
       comment_trigger:
-        description: "Substring that must be present in an issue_comment body to trigger a re-run"
         required: false
         type: string
         default: "/gemini"
-
-      # Deterministic gates toggle (lint/tests)
       run_gates:
-        description: "Run deterministic gates (lint/tests) on pull_request events"
         required: false
         type: boolean
         default: true
-
-      # Node version
       node_version:
         required: false
         type: string
         default: "20"
-
-      # Model overrides (take precedence over script defaults)
       primary_model:
         required: false
         type: string
@@ -32,12 +23,11 @@ on:
         required: false
         type: string
         default: "gemini-2.0-flash"
-
     secrets:
       GEMINI_REVIEW_API_KEY:
-        required: false   # allow “gates-only” installs
+        required: false
       GITHUB_TOKEN:
-        required: false   # workflow gets one by default; allow override if user wants a PAT
+        required: false
 
 permissions:
   contents: read
@@ -45,10 +35,16 @@ permissions:
 
 jobs:
   gates_and_bundle:
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.actor != 'github-actions[bot]' && contains(github.event.comment.body, '/gemini'))
+    if: github.event_name == 'pull_request' || (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          github.actor != 'github-actions[bot]' &&
+          contains(github.event.comment.body, inputs.comment_trigger)
+        )
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN || github.token }}
 
     steps:
       - name: Checkout (for PR gates + bundle)
@@ -67,7 +63,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ inputs.node_version }}
 
       - name: Cache npm
         if: hashFiles('package-lock.json') != ''
@@ -78,38 +74,23 @@ jobs:
           restore-keys: |
             npm-${{ runner.os }}-
 
-      # --------
-      # 0) Deterministic gates (tune to your stack)
-      # --------
       - name: Install dependencies
         if: hashFiles('package.json') != ''
         run: npm ci
 
       - name: Run formatter / linter (Node example)
-        if: github.event_name == 'pull_request' && hashFiles('package.json') != ''
+        if: inputs.run_gates && github.event_name == 'pull_request' && hashFiles('package.json') != ''
         run: npm run lint --if-present
 
       - name: Run tests (Node example)
-        if: github.event_name == 'pull_request' && hashFiles('package.json') != ''
+        if: inputs.run_gates && github.event_name == 'pull_request' && hashFiles('package.json') != ''
         run: npm test --if-present
 
-      # Add more deterministic gates as you like:
-      # - CodeQL (security)
-      # - Semgrep (security)
-      # - dependency audit
-      # - python tests, go test, etc.
-
-      # --------
-      # 1) Collect PR diff + metadata + gate results
-      #    (and enforce PR size policy)
-      # --------
       - name: Build review bundle (diff + metadata + gate summary)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: node .github/scripts/build_review_bundle.mjs
 
-      # If PR is too large, mark it for a split and stop early for Gemini
       - name: PR size guardrail
         run: node .github/scripts/size_guardrail.mjs
 
@@ -125,18 +106,23 @@ jobs:
 
   gemini_review:
     needs: gates_and_bundle
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.actor != 'github-actions[bot]' && contains(github.event.comment.body, '/gemini'))
+    if: github.event_name == 'pull_request' || (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          github.actor != 'github-actions[bot]' &&
+          contains(github.event.comment.body, inputs.comment_trigger)
+        )
     runs-on: ubuntu-latest
     concurrency:
       group: gemini-pr-review-v2-repo-wide
       cancel-in-progress: false
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN || github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
       GEMINI_REVIEW_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
       REPO: ${{ github.repository }}
-      GEMINI_PRIMARY_MODEL: ${{ vars.GEMINI_PRIMARY_MODEL }}
-      GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+      GEMINI_PRIMARY_MODEL: ${{ inputs.primary_model || vars.GEMINI_PRIMARY_MODEL }}
+      GEMINI_FALLBACK_MODEL: ${{ inputs.fallback_model || vars.GEMINI_FALLBACK_MODEL }}
 
     steps:
       - name: Checkout (for PR Gemini steps)
@@ -155,7 +141,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ inputs.node_version }}
 
       - name: Cache npm
         if: hashFiles('package-lock.json') != ''
@@ -197,9 +183,6 @@ jobs:
         run: |
           node -e "import { Octokit } from '@octokit/rest'; const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN }); const [owner, repo] = process.env.REPO.split('/'); const issue_number = Number(process.env.PR_NUMBER); await octokit.issues.createComment({ owner, repo, issue_number, body: 'Gemini review skipped: `GEMINI_REVIEW_API_KEY` is missing or empty. Set it in repo secrets to enable the bot.' });"
 
-      # --------
-      # 2) Gemini review (2-pass: analyze -> polish)
-      # --------
       - name: Gemini analyze
         continue-on-error: true
         if: steps.gemini_key.outputs.has_key == 'true'
@@ -210,16 +193,10 @@ jobs:
         if: steps.gemini_key.outputs.has_key == 'true'
         run: node .github/scripts/gemini_format_review.mjs
 
-      # --------
-      # 3) Post a single PR review comment (Blockers-first)
-      # --------
       - name: Post PR review
         if: steps.gemini_key.outputs.has_key == 'true'
         run: node .github/scripts/post_pr_review.mjs
 
-      # --------
-      # 4) Optional: Post *only blocker* inline comments (max N)
-      # --------
       - name: Post blocker inline comments (optional)
         if: steps.gemini_key.outputs.has_key == 'true'
         run: node .github/scripts/post_inline_blockers.mjs
