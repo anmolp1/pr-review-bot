@@ -93,5 +93,11 @@ The bot scripts rely on `@google/genai` and `@octokit/rest` and are installed fr
 - Keep `v1` pointing at the latest compatible minor/patch release.
 - Document breaking changes in release notes.
 
+## Release checklist
+- [ ] README updated with usage, permissions, and secrets
+- [ ] Workflow validated on a small PR and comment-trigger run
+- [ ] Release tagged (`v1` / `v1.x.y`)
+- [ ] `v1` moved to the latest compatible release
+
 ## License
 MIT (see `LICENSE`).
