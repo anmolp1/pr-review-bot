@@ -31,6 +31,13 @@ jobs:
       GEMINI_REVIEW_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
 ```
 
+## Step-by-step demo
+1) Create `.github/workflows/gemini-pr-review.yml` in your repo.
+2) Paste the YAML above and commit it.
+3) Add repo secret `GEMINI_REVIEW_API_KEY`.
+4) Open a PR and confirm a review comment appears.
+5) Comment `/gemini` to re-run.
+
 ## Notes
 - Requires `GEMINI_REVIEW_API_KEY` secret.
 - `v1` tag points to the latest compatible release in the v1 series.

@@ -61,6 +61,15 @@ jobs:
 
 For stability, pin to a tag or commit SHA (avoid `@main`).
 
+## Usage demo (step-by-step)
+Use this as a literal checklist for a new repo:
+1) In your repo, create `.github/workflows/gemini-pr-review.yml`.
+2) Paste the reusable workflow YAML above into that file and commit it.
+3) In GitHub: Settings → Secrets and variables → Actions → New repository secret → add `GEMINI_REVIEW_API_KEY`.
+4) Open a PR with a small change.
+5) Confirm a review comment appears.
+6) Add a comment containing `/gemini` to re-run the review.
+
 ## What it does
 - Runs on PR events: `opened`, `synchronize`, `reopened`, `ready_for_review`
 - Runs on comment events with `/gemini` to re-run reviews without re-running gates
