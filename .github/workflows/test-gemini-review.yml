@@ -18,4 +18,5 @@ jobs:
       comment_trigger: "/gemini"
       run_gates: true
       node_version: "20"
-    secrets: inherit
+    secrets:
+      GEMINI_REVIEW_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
