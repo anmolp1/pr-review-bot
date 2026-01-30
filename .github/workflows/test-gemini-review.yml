@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   gemini_pr_review:
-    uses: ./.github/workflows/gemini-pr-review-v2.yml
+    uses: anmolp1/pr-review-bot/.github/workflows/gemini-pr-review-v2.yml@main
     with:
       comment_trigger: "/gemini"
       run_gates: true
