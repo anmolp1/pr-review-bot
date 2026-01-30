@@ -32,6 +32,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   gates_and_bundle:
@@ -66,17 +67,21 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Cache npm
-        if: hashFiles('package-lock.json') != ''
+        if: hashFiles('package-lock.json', '.github/package-lock.json') != ''
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json', '.github/package-lock.json') }}
           restore-keys: |
             npm-${{ runner.os }}-
 
       - name: Install dependencies
         if: hashFiles('package.json') != ''
         run: npm ci
+
+      - name: Install Gemini bot deps
+        if: hashFiles('.github/package.json') != ''
+        run: npm ci --prefix .github
 
       - name: Run formatter / linter (Node example)
         if: inputs.run_gates && github.event_name == 'pull_request' && hashFiles('package.json') != ''
@@ -144,17 +149,21 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Cache npm
-        if: hashFiles('package-lock.json') != ''
+        if: hashFiles('package-lock.json', '.github/package-lock.json') != ''
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json', '.github/package-lock.json') }}
           restore-keys: |
             npm-${{ runner.os }}-
 
       - name: Install dependencies
         if: hashFiles('package.json') != ''
         run: npm ci
+
+      - name: Install Gemini bot deps
+        if: hashFiles('.github/package.json') != ''
+        run: npm ci --prefix .github
 
       - name: Download review inputs
         uses: actions/download-artifact@v4

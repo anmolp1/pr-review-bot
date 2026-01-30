@@ -1,0 +1,12 @@
+{
+  "name": "gemini-pr-review-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Dependencies for the Gemini PR review GitHub Action scripts.",
+  "dependencies": {
+    "@google/genai": "^1.38.0",
+    "@octokit/rest": "^22.0.1"
+  }
+}

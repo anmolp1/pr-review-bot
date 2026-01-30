@@ -20,6 +20,7 @@ This repo includes an automated PR review bot powered by Gemini. It runs determi
 - `gemini_review`: runs when `GEMINI_REVIEW_API_KEY` is present. Fork PRs are skipped on `pull_request` events because secrets are unavailable.
 - Gemini review is serialized repo-wide via job-level concurrency (`gemini-pr-review-v2-repo-wide`) so gates can still run in parallel.
 - Comment-triggered runs skip gates to avoid executing untrusted PR code when secrets are available.
+- Workflow permissions required: `contents: read`, `pull-requests: write`, `issues: write`.
 
 ## Scripts and responsibilities
 - `./.github/scripts/build_review_bundle.mjs`: Fetch PR metadata and diffs, filter files, truncate patches.
@@ -28,6 +29,7 @@ This repo includes an automated PR review bot powered by Gemini. It runs determi
 - `./.github/scripts/gemini_format_review.mjs`: Formats findings into Markdown (`review_final.md`).
 - `./.github/scripts/post_pr_review.mjs`: Posts the final review comment.
 - `./.github/scripts/post_inline_blockers.mjs`: Optional blocker highlights comment.
+- `./.github/package.json`: Bot-only dependencies (`@google/genai`, `@octokit/rest`) installed by the workflow.
 
 ## Required secrets
 - `GEMINI_REVIEW_API_KEY`: Gemini API key used by the bot.
