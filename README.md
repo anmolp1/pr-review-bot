@@ -21,6 +21,37 @@ This repo is designed to be copied into your own repository. It is not published
 @github-actions /gemini please review
 ```
 
+## Quickstart (reusable workflow)
+
+If you prefer a reusable workflow, add a workflow file like this:
+
+```yml
+name: Gemini PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gemini_pr_review:
+    uses: anmolp1/pr-review-bot/.github/workflows/gemini-pr-review-v2.yml@v1
+    with:
+      comment_trigger: "/gemini"
+      run_gates: true
+      node_version: "20"
+    secrets:
+      GEMINI_REVIEW_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
+```
+
+For stability, pin to a tag or commit SHA (avoid `@main`).
+
 ## What it does
 - Runs on PR events: `opened`, `synchronize`, `reopened`, `ready_for_review`
 - Runs on comment events with `/gemini` to re-run reviews without re-running gates
@@ -45,10 +76,22 @@ Optional file:
 ## Dependency notes
 The bot scripts rely on `@google/genai` and `@octokit/rest` and are installed from `.github/package.json` by the workflow.
 
+## Sanity check (minimal repo)
+1) Create a new repo with a single `README.md`.
+2) Add the reusable workflow snippet above (or copy `.github/` from this repo).
+3) Add `GEMINI_REVIEW_API_KEY` to repo secrets.
+4) Open a PR with a small change and confirm a review is posted.
+5) Add a comment containing `/gemini` and confirm a comment-triggered run posts a review.
+
 ## Security and privacy
 - Fork PRs do not have access to secrets, so Gemini review is skipped.
 - Bundle size is capped and patches are truncated before sending to Gemini.
 - Workflow artifacts include the bundle and output; review these if your repo contains sensitive data.
+
+## Release
+- Use tags for stable references (e.g., `v1`, `v1.0.0`).
+- Keep `v1` pointing at the latest compatible minor/patch release.
+- Document breaking changes in release notes.
 
 ## License
 MIT (see `LICENSE`).
