@@ -4,26 +4,35 @@ A GitHub Actions workflow that builds a structured PR bundle, runs deterministic
 
 This repo is designed to be copied into your own repository. It is not published as a marketplace action.
 
-## Quickstart (copy into your repo)
+## How to use (copy into your repo)
 
-1) Copy these files into your repo:
-- `.github/workflows/gemini-pr-review-v2.yml`
+1) In your repo, create this exact folder structure (if it doesn’t exist):
+- `.github/`
+- `.github/workflows/`
 - `.github/scripts/`
-- `.github/package.json` and `.github/package-lock.json`
-- `.github/gemini_context.md` (optional)
 
-2) Add secrets in your repo:
+2) Copy these files/folders from this repo into the same paths in your repo:
+- Copy `.github/workflows/gemini-pr-review-v2.yml` → your repo `.github/workflows/gemini-pr-review-v2.yml`
+- Copy `.github/scripts/` → your repo `.github/scripts/`
+- Copy `.github/package.json` → your repo `.github/package.json`
+- Copy `.github/package-lock.json` → your repo `.github/package-lock.json`
+- Optional: copy `.github/gemini_context.md` → your repo `.github/gemini_context.md`
+
+3) Add secrets in your repo:
 - `GEMINI_REVIEW_API_KEY` (required to enable Gemini steps)
 - `GITHUB_TOKEN` (provided automatically by Actions)
 
-3) Open a PR and wait for the workflow to comment, or trigger manually with a comment:
+4) Open a PR and wait for the workflow to comment, or trigger manually with a comment:
 ```
 @github-actions /gemini please review
 ```
 
-## Quickstart (reusable workflow)
+## How to use (reusable workflow)
 
 If you prefer a reusable workflow, add a workflow file like this:
+
+- Create a new file in your repo at: `.github/workflows/gemini-pr-review.yml`
+- Paste the YAML below into that file and commit it.
 
 ```yml
 name: Gemini PR Review
